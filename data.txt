@@ -1,1 +1,0 @@
-give2get,ssh -i ~/credentials/givendgetIreland.pem ubuntu@52.212.226.9
