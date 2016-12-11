@@ -3,6 +3,7 @@
 import sys, getopt, subprocess, os, json
 
 dataFile = './data.txt'
+dir_path = os.path.dirname(os.path.realpath("path"))
 
 def main(argv):
 
@@ -14,19 +15,25 @@ def main(argv):
         print 'try connect -help'
         sys.exit()
     if not opts == 0:
-        print '!connect'
+        if sys.argv[1]:
+            if sys.argv[1] == 'ssh':
+                connectionType = sys.argv[1]
+                connectionName = sys.argv[2]
+                connect(connectionName)
+            else:
+                connectionName = sys.argv[1]
+                connect(connectionName)
+
+    new_connection_name, new_connection_command = ['','']
     for opt, arg in opts:
         if opt == '-h':
-            dir_path = os.path.dirname(os.path.realpath("help.py"))
-            print dir_path
-            # print os.path.abspath("help.py")
             subprocess.call('python ' + dir_path + '/help.py', shell=True)
             sys.exit()
         elif opt in ("-a", "--add"):
             new_connection_name = arg
         elif opt in ("-c", "--command"):
             new_connection_command = arg
-    if new_connection_name is None <> new_connection_command is None:
+    if new_connection_name is not '' or new_connection_command is not '':
         add_connection(new_connection_name, new_connection_command)
 
 def add_connection(name, command):
@@ -35,10 +42,16 @@ def add_connection(name, command):
     with open(dataFile, 'a') as file:
         file.write(data)
 
-def connect (command):
-    print 'connect'
+def connect (name):
     with open(dataFile, 'r') as file:
-        print file
+        for line in file.readlines():
+            connection = line.split(',')
+            print 'Connecting to', connection[0], '...'
+            os.system(connection[1])
+
+def add_identity_file(ifile):
+    #TODO
+    print 'identity'
 
 if __name__ == "__main__":
     main(sys.argv[1:])
