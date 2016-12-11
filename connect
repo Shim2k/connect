@@ -1,0 +1,44 @@
+#!/usr/bin/python
+
+import sys, getopt, subprocess, os, json
+
+dataFile = './data.txt'
+
+def main(argv):
+
+    output = []
+    try:
+        opts, args = getopt.getopt(argv,"ha:c:i:",["ifile=","ofile="])
+    except getopt.GetoptError:
+        print "connect: bad options"
+        print 'try connect -help'
+        sys.exit()
+    if not opts == 0:
+        print '!connect'
+    for opt, arg in opts:
+        if opt == '-h':
+            dir_path = os.path.dirname(os.path.realpath("help.py"))
+            print dir_path
+            # print os.path.abspath("help.py")
+            subprocess.call('python ' + dir_path + '/help.py', shell=True)
+            sys.exit()
+        elif opt in ("-a", "--add"):
+            new_connection_name = arg
+        elif opt in ("-c", "--command"):
+            new_connection_command = arg
+    if new_connection_name is None <> new_connection_command is None:
+        add_connection(new_connection_name, new_connection_command)
+
+def add_connection(name, command):
+    data = "%s,%s\n" % (name, command)
+    print data
+    with open(dataFile, 'a') as file:
+        file.write(data)
+
+def connect (command):
+    print 'connect'
+    with open(dataFile, 'r') as file:
+        print file
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
