@@ -24,14 +24,14 @@ class Paths(object):
         self.invoker = os.path.dirname(os.path.realpath("path"))
         self.lib = '/'.join(self.container[:-1]) + '/lib/connect/'
         self.help = self.lib + 'help.py'
-        self.connection_map = self.lib + 'map.py'
+        self.map = self.lib + 'map.py'
 
     def connection_lib(self, name):
         ''' Returns the connection folder path '''
         self.connection_path = self.lib + name
         return self.connection_path
 
-def is_plugin(argument):
+def is_using_plugin(argument):
     ''' Check if an argument is a plugin '''
 
     supported_plugins = [{
@@ -68,6 +68,7 @@ class Connection(object):
 
     def save(self):
         ''' Saving Connection to disk '''
+
         paths = Paths()
         paths.connection_lib(self.name)
 
@@ -101,59 +102,69 @@ def create_connection_storage(paths):
 
 def store_attachments(attachments, connection_store):
     ''' storing attachments '''
-    print 'storing files..'
     for attachment in attachments:
-        shutil.copy2(attachment, connection_store)
+        shutil.copy2(attachment, connection_store + '/' + attachment.split('/')[-1])
 
 def store_connection(specs, path):
     ''' storing the connection file to it's folder '''
+
+    map_path = Paths().map
+
+    connection_file = path + '/' + specs['name']
+
+    conn_specs = {specs['name'] : specs}
+
     try:
-        with open(path, 'a') as file:
-            file.write(specs)
+        with open(connection_file, 'w+') as connection_file:
+            pickle.dump(conn_specs, connection_file)
+
+            if os.path.exists(map_path):
+                with open(map_path, 'r') as map_file:
+
+                    connections_map = pickle.load(map_file)
+                    connections_map[specs['name']] = specs
+
+                    with open(map_path, 'w') as map_file:
+                        pickle.dump(connections_map, map_file)
+            else:
+                with open(map_path, 'w+') as map_file:
+                    pickle.dump(conn_specs, map_file)
+
     except IOError as error:
         print error
 
 
-def check_for_connection(name, plugin):
+def connection_exists(name, plugin='default'):
     ''' does a connection folder by this name exists? '''
     return os.path.isdir(Paths().connection_lib(name))
 
-def add_connection(name, command):
-    ''' Add a connection to the data file '''
-    data = "%s,%s\n" % (name, command)
-    try:
-        with open(Paths.DATA_FILE, 'a') as file:
-            file.write(data)
-        print bcolors.BOLD + "Connection added successfully!" + bcolors.ENDC
-    except IOError as e:
-        print bcolors.WARNING + bcolors.UNDERLINE + "try using sudo to add connections!" + bcolors.ENDC
-
-
-def connect (name, plugin):
+def connect (name, plugin='default'):
     ''' executing a connection '''
-    connection = Connection('a', 'b', 'c', 'd')
-    connection.show_paths()
 
-    with open(Paths.DATA_FILE, 'r') as file:
-        for line in file.readlines():
-            connection = line.split(',')
-            if connection[0] == name:
-                print 'Connecting to', connection[0] + '...'
-                os.system(connection[1])
+    with open(Paths().map, 'r') as map_file:
+        connections_map = pickle.load(map_file)
+        command = connections_map[name]['command']
+        os.system(command)
 
-
-def connection_list ():
+def connection_list():
     ''' prints all connections '''
-    print 'Connections list\n'
-    
-    with open(Paths().connection_map, 'r') as file:
-        for line in file.readlines():
-            print line
+    try:
+        with open(Paths().map, 'r') as connection_list_file:
+            connection_list = pickle.load(connection_list_file)
 
-def remove_connection ():
+            print '\nConnections:\n'
+
+            for connection in connection_list:
+                print connection_list[connection]
+    except IOError as error:
+        print "\nNo Connections yet"
+
+    print '\n'
+
+def remove_connection():
     ''' removing the connection folder from lib '''
     #TODO: Remove connections
-    a = 1
+    pass
 
 def create_connection(specs):
     ''' creating an alias connection '''
@@ -176,7 +187,8 @@ class Colors(object):
 def argument_parser(argv):
     ''' Parsing the user command for parameters '''
 
-    used_plugin = 'default'
+    plugin = 'default'
+
     try:
         opts, args = getopt.getopt(argv, "hn:c:i:", ["help", "name=", "command=", "identity="])
     except getopt.GetoptError:
@@ -184,23 +196,31 @@ def argument_parser(argv):
         print 'try connect -help'
         sys.exit()
 
-    if is_plugin(sys.argv[1]):
-        # check for the next argument after the plugin. If there is none then throw the plugin's manual
-        if sys.argv[2]:
-            used_plugin = sys.argv[1]
-    else:
-        # check for a connection on the default 'plugin'
-        connection_name = sys.argv[1]
-
-    if not check_for_connection(connection_name, 'default'):
-        print Colors().WARNING + Colors().UNDERLINE + "A connection by this name does not exist!" + Colors().ENDC 
+    if not opts:
+        if is_using_plugin(args[0]):
+            ''' check for the next argument after the plugin.
+                If there is none then throw the plugin's manual
+            '''
+            if sys.argv[2]:
+                plugin = args[0]
+            else:
+                # fetch plugin's menual
+                pass
+        else:
+            # check for a connection on the default 'plugin'
+            connection_name = args[0]
+            if not connection_exists(connection_name, 'default'):
+                error = "A connection by this name does not exist!"
+                print Colors().WARNING + Colors().UNDERLINE + error + Colors().ENDC
+                return
+            connect(connection_name, plugin)
         return
 
     new_connection = {
         'name' : '',
         'command' : '',
         'attachments' : [],
-        'plugin' : used_plugin
+        'plugin' : plugin
     }
 
     for opt, arg in opts:
@@ -216,14 +236,17 @@ def argument_parser(argv):
         elif opt in ("-c", "--command"):
             new_connection['command'] = arg
 
-    arrange_attachment_paths(new_connection['name'], new_connection['attachments'])
+    arrange_attachment_paths(new_connection['attachments'])
 
     create_connection(new_connection)
 
 
-def arrange_attachment_paths(connection_name, attachs):
+def arrange_attachment_paths(attachs):
+
+    ''' resolve the correct paths for the requested attachments '''
 
     paths = Paths()
+
     for i, attachment in enumerate(attachs):
         if attachment.startswith('./'):
             attachs[i] = paths.invoker + '/' + attachment[2:]
